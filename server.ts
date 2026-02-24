@@ -11,7 +11,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Initialize Neon SQL
-const sql = neon(process.env.DATABASE_URL!);
+const getSql = () => {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error("DATABASE_URL is not defined");
+    return null;
+  }
+  return neon(url);
+};
+
+const sql = getSql();
 
 // Cloudinary config
 cloudinary.config({
@@ -34,7 +43,11 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // Increased to 5MB for Cloudinary
 });
 
-async function initDb() {
+async function initDatabase() {
+  if (!sql) {
+    console.error("Cannot initialize database: sql client is null");
+    return;
+  }
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS peta_jabatan (
@@ -151,17 +164,21 @@ async function initDb() {
   }
 }
 
-async function startServer() {
-  await initDb();
+// Call database initialization
+initDatabase();
 
-  const app = express();
-  const PORT = process.env.PORT || 3000;
+const app = express();
+app.use(express.json());
 
-  app.use(express.json());
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", database: !!sql });
+});
 
-  // API Routes
-  app.get("/api/peta-jabatan", async (req, res) => {
-    try {
+// API Routes
+app.get("/api/peta-jabatan", async (req, res) => {
+  if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
+  try {
       const data = await sql`SELECT * FROM peta_jabatan ORDER BY id ASC`;
       res.json(data);
     } catch (error: any) {
@@ -170,6 +187,7 @@ async function startServer() {
   });
 
   app.post("/api/peta-jabatan", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const { idJabatan, namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
       const result = await sql`
@@ -184,6 +202,7 @@ async function startServer() {
   });
 
   app.put("/api/peta-jabatan/:id", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const { idJabatan, namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
       const id = req.params.id;
@@ -201,6 +220,7 @@ async function startServer() {
   });
 
   app.delete("/api/peta-jabatan/:id", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const id = req.params.id;
       await sql`DELETE FROM peta_jabatan WHERE id = ${id}`;
@@ -211,6 +231,7 @@ async function startServer() {
   });
 
   app.post("/api/login", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const { email, password } = req.body;
       const users = await sql`SELECT * FROM users WHERE email = ${email} AND password = ${password}`;
@@ -232,6 +253,7 @@ async function startServer() {
   });
 
   app.get("/api/proposals", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const proposals = await sql`SELECT * FROM proposals ORDER BY id ASC`;
       res.json(proposals);
@@ -241,6 +263,7 @@ async function startServer() {
   });
 
   app.get("/api/satyalancana", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const data = await sql`SELECT * FROM satyalancana ORDER BY id ASC`;
       res.json(data);
@@ -293,6 +316,7 @@ async function startServer() {
   });
 
   app.get("/api/jabatan-fungsional", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const data = await sql`SELECT * FROM jabatan_fungsional ORDER BY id ASC`;
       res.json(data);
@@ -369,6 +393,7 @@ async function startServer() {
   });
 
   app.get("/api/all-proposals", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const satya = await sql`
         SELECT id, name, nip, type as "jenisUsulan", status, 'satyalancana' as "sourceTable" 
@@ -387,6 +412,7 @@ async function startServer() {
   });
 
   app.patch("/api/update-proposal-status", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const { id, sourceTable, status } = req.body;
       if (sourceTable === 'satyalancana') {
@@ -442,6 +468,7 @@ async function startServer() {
   });
 
   app.get("/api/positions", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const positions = await sql`SELECT * FROM positions ORDER BY id ASC`;
       res.json(positions);
@@ -491,6 +518,7 @@ async function startServer() {
   });
 
   app.get("/api/employees", async (req, res) => {
+    if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
       const employees = await sql`SELECT * FROM employees ORDER BY id ASC`;
       res.json(employees);
@@ -552,9 +580,11 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(PORT), "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+  if (process.env.NODE_ENV !== "production") {
+    const PORT = process.env.PORT || 3000;
+    app.listen(Number(PORT), "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  }
 
-startServer();
+export default app;
