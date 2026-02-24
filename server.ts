@@ -1,8 +1,9 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { neon } from "@neondatabase/serverless";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
+import { createRequire } from "module";
 import multer from "multer";
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
@@ -567,16 +568,31 @@ app.get("/api/peta-jabatan", async (req, res) => {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`[Server] VERCEL: ${process.env.VERCEL}`);
+  
+  const isProduction = process.env.NODE_ENV === "production" || !!process.env.VERCEL || fs.existsSync(path.join(__dirname, "dist"));
+
+  if (!isProduction) {
+    try {
+      console.log("[Server] Attempting to load Vite dev server...");
+      const require = createRequire(import.meta.url);
+      const { createServer: createViteServer } = require("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      console.log("[Server] Vite dev server middleware attached");
+    } catch (e) {
+      console.error("[Server] Failed to load Vite:", e);
+    }
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    console.log("[Server] Serving static files from dist");
+    const distPath = path.join(__dirname, "dist");
+    app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
