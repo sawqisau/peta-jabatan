@@ -15,9 +15,10 @@ const __dirname = path.dirname(__filename);
 const getSql = () => {
   const url = process.env.DATABASE_URL;
   if (!url) {
-    console.error("DATABASE_URL is not defined");
+    console.error("[Database] DATABASE_URL is not defined in environment variables");
     return null;
   }
+  console.log("[Database] DATABASE_URL found, initializing client...");
   return neon(url);
 };
 
@@ -44,27 +45,34 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // Increased to 5MB for Cloudinary
 });
 
-async function initDatabase() {
+async function initDatabase(retries = 3) {
   if (!sql) {
-    console.error("Cannot initialize database: sql client is null");
+    console.error("[Database] Cannot initialize: sql client is null. Check DATABASE_URL environment variable.");
     return;
   }
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS peta_jabatan (
-        id SERIAL PRIMARY KEY,
-        idJabatan TEXT,
-        namaJabatan TEXT,
-        opd TEXT,
-        status TEXT,
-        namaPegawai TEXT,
-        nip TEXT,
-        pangkat TEXT,
-        jenjang TEXT,
-        catatan TEXT
-      );
-    `;
-    await sql`
+  
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`[Database] Initializing tables (attempt ${i + 1})...`);
+      // Test connection first
+      await sql`SELECT 1`;
+      console.log("[Database] Connection test successful");
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS peta_jabatan (
+          id SERIAL PRIMARY KEY,
+          idJabatan TEXT,
+          namaJabatan TEXT,
+          opd TEXT,
+          status TEXT,
+          namaPegawai TEXT,
+          nip TEXT,
+          pangkat TEXT,
+          jenjang TEXT,
+          catatan TEXT
+        );
+      `;
+      await sql`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE,
@@ -151,18 +159,26 @@ async function initDatabase() {
     `;
 
     // Ensure Admin User exists
-    const email = "admin@serangkota.go.id";
-    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+    const adminEmail = "admin@serangkota.go.id";
+    const users = await sql`SELECT * FROM users WHERE email = ${adminEmail}`;
     if (users.length === 0) {
       await sql`
         INSERT INTO users (email, password, role, opd, name) 
         VALUES ('admin@serangkota.go.id', 'admin123', 'admin', 'BKPSDM', 'Administrator')
       `;
     }
-    console.log("Database initialized successfully");
+    console.log("[Database] Database initialized successfully");
+    return; // Success, exit function
   } catch (error) {
-    console.error("Failed to initialize database:", error);
+    console.error(`[Database] Failed to initialize database (attempt ${i + 1}):`, error);
+    if (i === retries - 1) {
+      console.error("[Database] Max retries reached. Database initialization failed.");
+    } else {
+      // Wait a bit before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
+}
 }
 
 // Call database initialization
@@ -577,7 +593,8 @@ app.get("/api/peta-jabatan", async (req, res) => {
     try {
       console.log("[Server] Attempting to load Vite dev server...");
       const require = createRequire(import.meta.url);
-      const { createServer: createViteServer } = require("vite");
+      const vitePkg = "vite";
+      const { createServer: createViteServer } = require(vitePkg);
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
