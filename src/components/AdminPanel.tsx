@@ -31,11 +31,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const canManagePositions = userRole === 'admin';
 
   // Filter data based on role and OPD
-  const filteredPeta = petaJabatan;
+  const filteredPeta = userRole === 'admin'
+    ? petaJabatan
+    : petaJabatan.filter(p => p.opd === currentUser?.opd);
     
   const filteredProposalsList = userRole === 'admin'
     ? proposals
-    : proposals; // Proposals might need a department field too, but for now we show all or filter if possible
+    : proposals.filter(p => {
+        // Try to find the OPD from the source tables
+        const satya = satyalancana.find(s => s.nip === p.nip);
+        if (satya) return satya.opd === currentUser?.opd;
+        const jf = jabatanFungsional.find(j => j.nip === p.nip);
+        if (jf) return jf.opd === currentUser?.opd;
+        return false;
+      });
     
   const filteredPositions = userRole === 'admin'
     ? positions
@@ -160,6 +169,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 <>
                   <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider">Jabatan</th>
                   <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider">OPD</th>
+                  <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider text-center">Kelas</th>
+                  <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider text-center">Bezetting</th>
+                  <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider text-center">Kebutuhan</th>
+                  <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider text-center">+/-</th>
                   <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="p-4 font-medium text-sm text-gray-500 uppercase tracking-wider">Pegawai</th>
                 </>
@@ -212,24 +225,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           </thead>
           <tbody className="divide-y divide-black/5">
             {activeTab === 'peta-jabatan' ? (
-              filteredPeta.map(item => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-4 font-medium">{item.namaJabatan}</td>
-                  <td className="p-4 text-gray-600 text-sm">{item.opd}</td>
-                  <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.status === 'Terisi' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="p-4 text-gray-600 text-sm">{item.namaPegawai || '-'}</td>
-                  <td className="p-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
-                      <button onClick={() => handleDelete(item.id, 'peta-jabatan')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              filteredPeta.map(item => {
+                const selisih = (item.bezetting || 0) - (item.kebutuhan || 0);
+                return (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 font-medium">{item.namaJabatan}</td>
+                    <td className="p-4 text-gray-600 text-sm">{item.opd}</td>
+                    <td className="p-4 text-center font-mono text-sm">{item.kelas || '-'}</td>
+                    <td className="p-4 text-center font-mono text-sm">{item.bezetting || 0}</td>
+                    <td className="p-4 text-center font-mono text-sm">{item.kebutuhan || 0}</td>
+                    <td className="p-4 text-center">
+                      <span className={`font-mono text-xs font-bold ${selisih >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {selisih >= 0 ? `+${selisih}` : selisih}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.status === 'Terisi' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-gray-600 text-sm">{item.namaPegawai || '-'}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDelete(item.id, 'peta-jabatan')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             ) : activeTab === 'proposals' ? (
               filteredProposalsList.map(prop => (
                 <tr key={prop.id} className="hover:bg-gray-50 transition-colors">
@@ -435,10 +459,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Jabatan</label>
                     <input name="namaJabatan" defaultValue={editingItem?.namaJabatan} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
-                    <input name="opd" defaultValue={editingItem?.opd || (userRole === 'opd' ? currentUser?.opd : '')} required readOnly={userRole === 'opd'} className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole === 'opd' ? 'bg-gray-50' : ''}`} />
-                  </div>
+                  {userRole === 'admin' ? (
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
+                      <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    </div>
+                  ) : (
+                    <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                  )}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
                     <select name="status" defaultValue={editingItem?.status || "Kosong"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
@@ -464,6 +492,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenjang</label>
                     <input name="jenjang" defaultValue={editingItem?.jenjang} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kelas Jabatan</label>
+                    <input name="kelas" defaultValue={editingItem?.kelas} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Bezetting</label>
+                    <input name="bezetting" type="number" defaultValue={editingItem?.bezetting || 0} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kebutuhan</label>
+                    <input name="kebutuhan" type="number" defaultValue={editingItem?.kebutuhan || 0} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Catatan</label>
                     <textarea name="catatan" defaultValue={editingItem?.catatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" rows={2} />
@@ -485,11 +525,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
-                    <select name="status" defaultValue={editingItem?.status || "Diajukan"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                    <select 
+                      name="status" 
+                      defaultValue={editingItem?.status || "Diajukan"} 
+                      disabled={userRole !== 'admin'}
+                      className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole !== 'admin' ? 'bg-gray-50 opacity-70' : ''}`}
+                    >
                       <option value="Diajukan">Diajukan</option>
                       <option value="Diproses">Diproses</option>
                       <option value="Selesai">Selesai</option>
                     </select>
+                    {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
                   </div>
                 </>
               ) : activeTab === 'positions' ? (
@@ -498,10 +544,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Jabatan</label>
                     <input name="title" defaultValue={editingItem?.title} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Unit Kerja</label>
-                    <input name="department" defaultValue={editingItem?.department || (userRole === 'opd' ? currentUser?.opd : '')} required readOnly={userRole === 'opd'} className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole === 'opd' ? 'bg-gray-50' : ''}`} />
-                  </div>
+                  {userRole === 'admin' ? (
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Unit Kerja</label>
+                      <input name="department" defaultValue={editingItem?.department || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    </div>
+                  ) : (
+                    <input type="hidden" name="department" value={currentUser?.opd || ''} />
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kelas Jabatan</label>
@@ -543,10 +593,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
                       <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
-                      <input name="opd" defaultValue={editingItem?.opd || (userRole === 'opd' ? currentUser?.opd : '')} required readOnly={userRole === 'opd'} className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole === 'opd' ? 'bg-gray-50' : ''}`} />
-                    </div>
+                    {userRole === 'admin' ? (
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
+                        <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                    ) : (
+                      <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                    )}
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis</label>
                       <select name="type" defaultValue={editingItem?.type || "X TAHUN"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
@@ -561,11 +615,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
-                      <select name="status" defaultValue={editingItem?.status || "Diajukan"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                      <select 
+                        name="status" 
+                        defaultValue={editingItem?.status || "Diajukan"} 
+                        disabled={userRole !== 'admin'}
+                        className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole !== 'admin' ? 'bg-gray-50 opacity-70' : ''}`}
+                      >
                         <option value="Diajukan">Diajukan</option>
                         <option value="Diproses">Diproses</option>
                         <option value="Selesai">Selesai</option>
                       </select>
+                      {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
                     </div>
                   </div>
                 </>
@@ -580,10 +640,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
                       <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
-                      <input name="opd" defaultValue={editingItem?.opd || (userRole === 'opd' ? currentUser?.opd : '')} required readOnly={userRole === 'opd'} className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole === 'opd' ? 'bg-gray-50' : ''}`} />
-                    </div>
+                    {userRole === 'admin' ? (
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
+                        <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                    ) : (
+                      <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                    )}
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis Usulan</label>
                       <select name="type" defaultValue={editingItem?.type || "Kenaikan Jenjang Jabatan Fungsional"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
@@ -598,11 +662,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
-                      <select name="status" defaultValue={editingItem?.status || "Diajukan"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                      <select 
+                        name="status" 
+                        defaultValue={editingItem?.status || "Diajukan"} 
+                        disabled={userRole !== 'admin'}
+                        className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole !== 'admin' ? 'bg-gray-50 opacity-70' : ''}`}
+                      >
                         <option value="Diajukan">Diajukan</option>
                         <option value="Diproses">Diproses</option>
                         <option value="Selesai">Selesai</option>
                       </select>
+                      {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
                     </div>
                   </div>
                 </>

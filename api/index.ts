@@ -67,19 +67,22 @@ async function initDatabase(retries = 3) {
       await sql`SELECT 1`;
       console.log("[Database] Connection test successful");
 
-      await sql`
-        CREATE TABLE IF NOT EXISTS peta_jabatan (
-          id SERIAL PRIMARY KEY,
-          namaJabatan TEXT,
-          opd TEXT,
-          status TEXT,
-          namaPegawai TEXT,
-          nip TEXT,
-          pangkat TEXT,
-          jenjang TEXT,
-          catatan TEXT
-        );
-      `;
+        await sql`
+          CREATE TABLE IF NOT EXISTS peta_jabatan (
+            id SERIAL PRIMARY KEY,
+            namaJabatan TEXT,
+            opd TEXT,
+            status TEXT,
+            namaPegawai TEXT,
+            nip TEXT,
+            pangkat TEXT,
+            jenjang TEXT,
+            catatan TEXT,
+            kelas TEXT,
+            bezetting INTEGER DEFAULT 0,
+            kebutuhan INTEGER DEFAULT 0
+          );
+        `;
       // Cleanup old columns (migration)
       try {
         await sql`ALTER TABLE peta_jabatan DROP COLUMN IF EXISTS idJabatan`;
@@ -244,6 +247,46 @@ app.get("/api/health", async (req, res) => {
 });
 
 // API Routes
+app.get("/api/bezetting-summary", async (req, res) => {
+  if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
+  try {
+    const summary = await sql`
+      SELECT 
+        opd,
+        COUNT(*) as total_jabatan,
+        SUM(bezetting) as total_bezetting,
+        SUM(kebutuhan) as total_kebutuhan,
+        SUM(kebutuhan) - SUM(bezetting) as selisih
+      FROM peta_jabatan
+      GROUP BY opd
+      ORDER BY opd ASC
+    `;
+    res.json(summary);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get("/api/jenjang-summary", async (req, res) => {
+  if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
+  try {
+    const summary = await sql`
+      SELECT 
+        jenjang,
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'Terisi') as terisi,
+        COUNT(*) FILTER (WHERE status ILIKE '%kosong%') as kosong
+      FROM peta_jabatan
+      WHERE jenjang IS NOT NULL
+      GROUP BY jenjang
+      ORDER BY jenjang ASC
+    `;
+    res.json(summary);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 app.get("/api/stats", async (req, res) => {
   if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
   try {
@@ -268,10 +311,12 @@ app.get("/api/peta-jabatan-filters", async (req, res) => {
   try {
     const opds = await sql`SELECT DISTINCT opd FROM peta_jabatan WHERE opd IS NOT NULL ORDER BY opd ASC`;
     const statuses = await sql`SELECT DISTINCT status FROM peta_jabatan WHERE status IS NOT NULL ORDER BY status ASC`;
+    const jenjangs = await sql`SELECT DISTINCT jenjang FROM peta_jabatan WHERE jenjang IS NOT NULL ORDER BY jenjang ASC`;
     
     res.json({
       opds: opds.map(r => r.opd),
-      statuses: statuses.map(r => r.status)
+      statuses: statuses.map(r => r.status),
+      jenjangs: jenjangs.map(r => r.jenjang)
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -287,6 +332,7 @@ app.get("/api/peta-jabatan", async (req, res) => {
     const search = (req.query.search as string) || "";
     const opd = (req.query.opd as string) || "";
     const status = (req.query.status as string) || "";
+    const jenjang = (req.query.jenjang as string) || "";
 
     // Build query with filters
     let query = sql`SELECT * FROM peta_jabatan WHERE 1=1`;
@@ -305,6 +351,10 @@ app.get("/api/peta-jabatan", async (req, res) => {
       query = sql`${query} AND status = ${status}`;
       countQuery = sql`${countQuery} AND status = ${status}`;
     }
+    if (jenjang) {
+      query = sql`${query} AND jenjang = ${jenjang}`;
+      countQuery = sql`${countQuery} AND jenjang = ${jenjang}`;
+    }
 
     const totalRes = await countQuery;
     const total = parseInt(totalRes[0].count);
@@ -321,7 +371,10 @@ app.get("/api/peta-jabatan", async (req, res) => {
       nip: row.nip,
       pangkat: row.pangkat,
       jenjang: row.jenjang,
-      catatan: row.catatan
+      catatan: row.catatan,
+      kelas: row.kelas,
+      bezetting: row.bezetting,
+      kebutuhan: row.kebutuhan
     }));
 
     res.json({
@@ -340,10 +393,10 @@ app.get("/api/peta-jabatan", async (req, res) => {
   app.post("/api/peta-jabatan", async (req, res) => {
     if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
-      const { namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
+      const { namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan, kelas, bezetting, kebutuhan } = req.body;
       const result = await sql`
-        INSERT INTO peta_jabatan (namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan) 
-        VALUES (${namaJabatan}, ${opd}, ${status}, ${namaPegawai}, ${nip}, ${pangkat}, ${jenjang}, ${catatan}) 
+        INSERT INTO peta_jabatan (namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan, kelas, bezetting, kebutuhan) 
+        VALUES (${namaJabatan}, ${opd}, ${status}, ${namaPegawai}, ${nip}, ${pangkat}, ${jenjang}, ${catatan}, ${kelas}, ${bezetting}, ${kebutuhan}) 
         RETURNING id
       `;
       res.json({ id: result[0].id });
@@ -355,13 +408,13 @@ app.get("/api/peta-jabatan", async (req, res) => {
   app.put("/api/peta-jabatan/:id", async (req, res) => {
     if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
-      const { namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
+      const { namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan, kelas, bezetting, kebutuhan } = req.body;
       const id = req.params.id;
       await sql`
         UPDATE peta_jabatan 
         SET namaJabatan = ${namaJabatan}, opd = ${opd}, status = ${status}, 
             namaPegawai = ${namaPegawai}, nip = ${nip}, pangkat = ${pangkat}, jenjang = ${jenjang}, 
-            catatan = ${catatan} 
+            catatan = ${catatan}, kelas = ${kelas}, bezetting = ${bezetting}, kebutuhan = ${kebutuhan}
         WHERE id = ${id}
       `;
       res.json({ success: true });

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LayoutDashboard, Users, Shield, LogOut, Map as MapIcon, Briefcase, UserCircle, Search, FileText, Medal, Plus, UserPlus, Edit2, Trash2, Ticket } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, LogOut, Map as MapIcon, Briefcase, UserCircle, Search, FileText, Medal, Plus, UserPlus, Edit2, Trash2, Ticket, BarChart3, LayoutGrid } from 'lucide-react';
 import AdminPanel from './components/AdminPanel';
 import SatyalancanaView from './components/SatyalancanaView';
 import JabatanFungsionalView from './components/JabatanFungsionalView';
 import TicketingView from './components/TicketingView';
+import JenjangView from './components/JenjangView';
+import BezettingView from './components/BezettingView';
 import { Position, Employee, Proposal, PetaJabatan, Satyalancana, JabatanFungsional, UnifiedProposal } from './types';
 
 export default function App() {
-  const [view, setView] = useState<'public' | 'admin' | 'satyalancana' | 'jabatan-fungsional' | 'ticketing'>('public');
+  const [view, setView] = useState<'public' | 'admin' | 'satyalancana' | 'jabatan-fungsional' | 'ticketing' | 'jenjang' | 'bezetting'>('public');
   const [isAdmin, setIsAdmin] = useState(false);
   const [positions, setPositions] = useState<Position[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -20,20 +22,23 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
-  const [filterOptions, setFilterOptions] = useState<{ opds: string[], statuses: string[] }>({ opds: [], statuses: [] });
+  const [filterOptions, setFilterOptions] = useState<{ opds: string[], statuses: string[], jenjangs: string[] }>({ opds: [], statuses: [], jenjangs: [] });
   const [stats, setStats] = useState({ totalJabatan: 0, terisi: 0, kosong: 0, totalUsulan: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOpd, setFilterOpd] = useState('');
   const [filterJabatan, setFilterJabatan] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterJenjang, setFilterJenjang] = useState('');
+  const [jenjangSummary, setJenjangSummary] = useState<any[]>([]);
+  const [bezettingSummary, setBezettingSummary] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<{ name: string; opd: string } | null>(null);
   const [userRole, setUserRole] = useState<'public' | 'admin' | 'opd'>('public');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const fetchPetaJabatan = async (page: number, search: string, opd: string, status: string) => {
+  const fetchPetaJabatan = async (page: number, search: string, opd: string, status: string, jenjang: string) => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -41,7 +46,8 @@ export default function App() {
         limit: '10',
         search,
         opd,
-        status
+        status,
+        jenjang
       });
       const res = await fetch(`/api/peta-jabatan?${params}`);
       const data = await res.json();
@@ -58,7 +64,7 @@ export default function App() {
   const fetchInitialData = async () => {
     try {
       console.log("[Fetch] Starting initial data fetch...");
-      const [posRes, empRes, propRes, satyaRes, jfRes, unifiedRes, filterRes, statsRes] = await Promise.all([
+      const [posRes, empRes, propRes, satyaRes, jfRes, unifiedRes, filterRes, statsRes, summaryRes, bezettingRes] = await Promise.all([
         fetch('/api/positions'),
         fetch('/api/employees'),
         fetch('/api/proposals'),
@@ -66,10 +72,12 @@ export default function App() {
         fetch('/api/jabatan-fungsional'),
         fetch('/api/all-proposals'),
         fetch('/api/peta-jabatan-filters'),
-        fetch('/api/stats')
+        fetch('/api/stats'),
+        fetch('/api/jenjang-summary'),
+        fetch('/api/bezetting-summary')
       ]);
       
-      const [posData, empData, propData, satyaData, jfData, unifiedData, filterData, statsData] = await Promise.all([
+      const [posData, empData, propData, satyaData, jfData, unifiedData, filterData, statsData, summaryData, bezettingData] = await Promise.all([
         posRes.json(),
         empRes.json(),
         propRes.json(),
@@ -77,7 +85,9 @@ export default function App() {
         jfRes.json(),
         unifiedRes.json(),
         filterRes.json(),
-        statsRes.json()
+        statsRes.json(),
+        summaryRes.json(),
+        bezettingRes.json()
       ]);
       
       setPositions(posData);
@@ -88,6 +98,8 @@ export default function App() {
       setUnifiedProposals(unifiedData);
       setFilterOptions(filterData);
       setStats(statsData);
+      setJenjangSummary(summaryData);
+      setBezettingSummary(bezettingData);
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
     }
@@ -96,7 +108,7 @@ export default function App() {
   const fetchData = async () => {
     await Promise.all([
       fetchInitialData(),
-      fetchPetaJabatan(currentPage, searchTerm, filterOpd, filterStatus)
+      fetchPetaJabatan(currentPage, searchTerm, filterOpd, filterStatus, filterJenjang)
     ]);
   };
 
@@ -107,13 +119,13 @@ export default function App() {
   useEffect(() => {
     // If user is OPD, lock the OPD filter
     const effectiveOpd = userRole === 'opd' ? (currentUser?.opd || '') : filterOpd;
-    fetchPetaJabatan(currentPage, searchTerm, effectiveOpd, filterStatus);
-  }, [currentPage, searchTerm, filterOpd, filterStatus, userRole, currentUser]);
+    fetchPetaJabatan(currentPage, searchTerm, effectiveOpd, filterStatus, filterJenjang);
+  }, [currentPage, searchTerm, filterOpd, filterStatus, filterJenjang, userRole, currentUser]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterOpd, filterStatus]);
+  }, [searchTerm, filterOpd, filterStatus, filterJenjang]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +180,7 @@ export default function App() {
 
   const uniqueOpds = filterOptions.opds;
   const uniqueStatuses = filterOptions.statuses;
+  const uniqueJenjangs = filterOptions.jenjangs;
   const uniqueJabatans: string[] = []; // Removed for now as it's too many to fetch all
 
   if (loading) {
@@ -209,6 +222,24 @@ export default function App() {
               <Users size={24} />
             </button>
           )}
+
+          <button 
+            type="button"
+            onClick={() => setView('jenjang')}
+            className={`p-4 rounded-xl transition-all cursor-pointer flex items-center justify-center relative z-[110] ${view === 'jenjang' ? 'bg-black text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}
+            title="Ringkasan Jenjang"
+          >
+            <BarChart3 size={24} />
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setView('bezetting')}
+            className={`p-4 rounded-xl transition-all cursor-pointer flex items-center justify-center relative z-[110] ${view === 'bezetting' ? 'bg-black text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}
+            title="Data Bezetting"
+          >
+            <LayoutGrid size={24} />
+          </button>
 
           <button 
             type="button"
@@ -320,10 +351,14 @@ export default function App() {
                 {view === 'admin' ? (userRole === 'admin' ? 'DASHPEG - Admin' : 'DASHPEG - OPD') : 
                  view === 'satyalancana' ? 'DASHPEG - Satyalancana' :
                  view === 'jabatan-fungsional' ? 'DASHPEG - Jabatan Fungsional' :
+                 view === 'jenjang' ? 'DASHPEG - Ringkasan Jenjang' :
+                 view === 'bezetting' ? 'DASHPEG - Data Bezetting' :
                  'DASHPEG'}
               </h1>
               <p className="text-sm md:text-gray-500 font-medium">
-                Sistem Informasi Kepegawaian & Jabatan (DASHPEG)
+                {view === 'jenjang' ? 'Ringkasan Jabatan Berdasarkan Jenjang' : 
+                 view === 'bezetting' ? 'Data Bezetting dan Kebutuhan Pegawai' :
+                 'Sistem Informasi Kepegawaian & Jabatan (DASHPEG)'}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -344,6 +379,14 @@ export default function App() {
               >
                 <option value="">Semua OPD</option>
                 {uniqueOpds.map(opd => <option key={opd} value={opd}>{opd}</option>)}
+              </select>
+              <select 
+                value={filterJenjang}
+                onChange={(e) => setFilterJenjang(e.target.value)}
+                className="p-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none max-w-[150px]"
+              >
+                <option value="">Semua Jenjang</option>
+                {uniqueJenjangs.map(j => <option key={j} value={j}>{j}</option>)}
               </select>
               <select 
                 value={filterStatus}
@@ -477,6 +520,10 @@ export default function App() {
                   </div>
                 </div>
               </motion.div>
+            ) : view === 'jenjang' ? (
+              <JenjangView data={jenjangSummary} />
+            ) : view === 'bezetting' ? (
+              <BezettingView data={userRole === 'opd' ? bezettingSummary.filter(b => b.opd === currentUser?.opd) : bezettingSummary} />
             ) : view === 'admin' ? (
               <motion.div
                 key="admin"

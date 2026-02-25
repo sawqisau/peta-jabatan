@@ -8,6 +8,9 @@ export interface PetaJabatan {
   pangkat: string;
   jenjang: string;
   catatan: string;
+  kelas?: string;
+  bezetting?: number;
+  kebutuhan?: number;
 }
 
 export interface Satyalancana {
