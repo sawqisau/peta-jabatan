@@ -13,9 +13,17 @@ interface AdminPanelProps {
   onUpdate: () => void;
   userRole: 'admin' | 'opd';
   currentUser: { name: string; opd: string } | null;
+  currentPage: number;
+  totalPages: number;
+  totalRows: number;
+  onPageChange: (page: number) => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ positions, employees, proposals, petaJabatan, satyalancana, jabatanFungsional, unifiedProposals, onUpdate, userRole, currentUser }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ 
+  positions, employees, proposals, petaJabatan, satyalancana, 
+  jabatanFungsional, unifiedProposals, onUpdate, userRole, 
+  currentUser, currentPage, totalPages, totalRows, onPageChange 
+}) => {
   const [activeTab, setActiveTab] = useState<'positions' | 'employees' | 'proposals' | 'peta-jabatan' | 'satyalancana' | 'jabatan-fungsional' | 'ticketing'>('peta-jabatan');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -23,9 +31,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ positions, employees, proposals
   const canManagePositions = userRole === 'admin';
 
   // Filter data based on role and OPD
-  const filteredPeta = userRole === 'admin' 
-    ? petaJabatan 
-    : petaJabatan.filter(p => p.opd === currentUser?.opd);
+  const filteredPeta = petaJabatan;
     
   const filteredProposalsList = userRole === 'admin'
     ? proposals
@@ -387,6 +393,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ positions, employees, proposals
           </tbody>
         </table>
         </div>
+        
+        {activeTab === 'peta-jabatan' && (
+          <div className="p-4 border-t border-black/5 flex items-center justify-between bg-gray-50/50 rounded-b-2xl">
+            <div className="text-xs text-gray-500 font-medium">
+              Menampilkan <span className="text-black">{petaJabatan.length}</span> dari <span className="text-black">{totalRows}</span> data
+            </div>
+            <div className="flex gap-2">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+              >
+                Prev
+              </button>
+              <div className="flex items-center px-2 text-xs font-bold">
+                {currentPage} / {totalPages}
+              </div>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (
@@ -398,10 +431,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ positions, employees, proposals
             <form onSubmit={handleSubmit} className="space-y-4">
               {activeTab === 'peta-jabatan' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">ID Jabatan</label>
-                    <input name="idJabatan" defaultValue={editingItem?.idJabatan} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                  </div>
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Jabatan</label>
                     <input name="namaJabatan" defaultValue={editingItem?.namaJabatan} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />

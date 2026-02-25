@@ -17,55 +17,103 @@ export default function App() {
   const [jabatanFungsional, setJabatanFungsional] = useState<JabatanFungsional[]>([]);
   const [unifiedProposals, setUnifiedProposals] = useState<UnifiedProposal[]>([]);
   const [petaJabatan, setPetaJabatan] = useState<PetaJabatan[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
+  const [filterOptions, setFilterOptions] = useState<{ opds: string[], statuses: string[] }>({ opds: [], statuses: [] });
+  const [stats, setStats] = useState({ totalJabatan: 0, terisi: 0, kosong: 0, totalUsulan: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOpd, setFilterOpd] = useState('');
   const [filterJabatan, setFilterJabatan] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [currentUser, setCurrentUser] = useState<{ name: string; opd: string } | null>(null);
+  const [userRole, setUserRole] = useState<'public' | 'admin' | 'opd'>('public');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
-  const fetchData = async () => {
+  const fetchPetaJabatan = async (page: number, search: string, opd: string, status: string) => {
     try {
-      const [posRes, empRes, propRes, petaRes, satyaRes, jfRes, unifiedRes] = await Promise.all([
-        fetch('/api/positions'),
-        fetch('/api/employees'),
-        fetch('/api/proposals'),
-        fetch('/api/peta-jabatan'),
-        fetch('/api/satyalancana'),
-        fetch('/api/jabatan-fungsional'),
-        fetch('/api/all-proposals')
-      ]);
-      const [posData, empData, propData, petaData, satyaData, jfData, unifiedData] = await Promise.all([
-        posRes.json(),
-        empRes.json(),
-        propRes.json(),
-        petaRes.json(),
-        satyaRes.json(),
-        jfRes.json(),
-        unifiedRes.json()
-      ]);
-      setPositions(posData);
-      setEmployees(empData);
-      setProposals(propData);
-      setPetaJabatan(petaData);
-      setSatyalancana(satyaData);
-      setJabatanFungsional(jfData);
-      setUnifiedProposals(unifiedData);
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        search,
+        opd,
+        status
+      });
+      const res = await fetch(`/api/peta-jabatan?${params}`);
+      const data = await res.json();
+      setPetaJabatan(data.data);
+      setTotalPages(data.totalPages);
+      setTotalRows(data.total);
     } catch (error) {
-      console.error("Failed to fetch data:", error);
+      console.error("Failed to fetch peta jabatan:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchInitialData = async () => {
+    try {
+      console.log("[Fetch] Starting initial data fetch...");
+      const [posRes, empRes, propRes, satyaRes, jfRes, unifiedRes, filterRes, statsRes] = await Promise.all([
+        fetch('/api/positions'),
+        fetch('/api/employees'),
+        fetch('/api/proposals'),
+        fetch('/api/satyalancana'),
+        fetch('/api/jabatan-fungsional'),
+        fetch('/api/all-proposals'),
+        fetch('/api/peta-jabatan-filters'),
+        fetch('/api/stats')
+      ]);
+      
+      const [posData, empData, propData, satyaData, jfData, unifiedData, filterData, statsData] = await Promise.all([
+        posRes.json(),
+        empRes.json(),
+        propRes.json(),
+        satyaRes.json(),
+        jfRes.json(),
+        unifiedRes.json(),
+        filterRes.json(),
+        statsRes.json()
+      ]);
+      
+      setPositions(posData);
+      setEmployees(empData);
+      setProposals(propData);
+      setSatyalancana(satyaData);
+      setJabatanFungsional(jfData);
+      setUnifiedProposals(unifiedData);
+      setFilterOptions(filterData);
+      setStats(statsData);
+    } catch (error) {
+      console.error("Failed to fetch initial data:", error);
+    }
+  };
+
+  const fetchData = async () => {
+    await Promise.all([
+      fetchInitialData(),
+      fetchPetaJabatan(currentPage, searchTerm, filterOpd, filterStatus)
+    ]);
+  };
+
   useEffect(() => {
-    fetchData();
+    fetchInitialData();
   }, []);
 
-  const [userRole, setUserRole] = useState<'public' | 'admin' | 'opd'>('public');
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  useEffect(() => {
+    // If user is OPD, lock the OPD filter
+    const effectiveOpd = userRole === 'opd' ? (currentUser?.opd || '') : filterOpd;
+    fetchPetaJabatan(currentPage, searchTerm, effectiveOpd, filterStatus);
+  }, [currentPage, searchTerm, filterOpd, filterStatus, userRole, currentUser]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterOpd, filterStatus]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,9 +166,9 @@ export default function App() {
     return matchesSearch && matchesOpd && matchesJabatan && matchesStatus;
   });
 
-  const uniqueOpds = Array.from(new Set(petaJabatan.map(p => p.opd))).sort();
-  const uniqueJabatans = Array.from(new Set(petaJabatan.map(p => p.namaJabatan))).sort();
-  const uniqueStatuses = Array.from(new Set(petaJabatan.map(p => p.status))).sort();
+  const uniqueOpds = filterOptions.opds;
+  const uniqueStatuses = filterOptions.statuses;
+  const uniqueJabatans: string[] = []; // Removed for now as it's too many to fetch all
 
   if (loading) {
     return (
@@ -298,14 +346,6 @@ export default function App() {
                 {uniqueOpds.map(opd => <option key={opd} value={opd}>{opd}</option>)}
               </select>
               <select 
-                value={filterJabatan}
-                onChange={(e) => setFilterJabatan(e.target.value)}
-                className="p-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none max-w-[150px]"
-              >
-                <option value="">Semua Jabatan</option>
-                {uniqueJabatans.map(j => <option key={j} value={j}>{j}</option>)}
-              </select>
-              <select 
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="p-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none"
@@ -334,14 +374,14 @@ export default function App() {
                       <div className="p-2 bg-black text-white rounded-lg"><Briefcase size={20} /></div>
                       <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Jabatan</div>
                     </div>
-                    <div className="text-4xl font-light">{petaJabatan.length}</div>
+                    <div className="text-4xl font-light">{stats.totalJabatan}</div>
                   </div>
                   <div className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><UserCircle size={20} /></div>
                       <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Terisi</div>
                     </div>
-                    <div className="text-4xl font-light">{petaJabatan.filter(p => p.status === 'Terisi').length}</div>
+                    <div className="text-4xl font-light">{stats.terisi}</div>
                   </div>
                   <div className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
@@ -349,7 +389,7 @@ export default function App() {
                       <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Kosong</div>
                     </div>
                     <div className="text-4xl font-light text-amber-600">
-                      {petaJabatan.filter(p => p.status.toLowerCase().includes('kosong')).length}
+                      {stats.kosong}
                     </div>
                   </div>
                   <div className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm">
@@ -357,7 +397,7 @@ export default function App() {
                       <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><FileText size={20} /></div>
                       <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Usulan</div>
                     </div>
-                    <div className="text-4xl font-light">{proposals.length}</div>
+                    <div className="text-4xl font-light">{stats.totalUsulan}</div>
                   </div>
                 </div>
 
@@ -378,7 +418,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-black/5">
-                        {filteredPeta.map(item => {
+                        {petaJabatan.map(item => {
                           return (
                             <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                               <td className="p-4 font-medium">{item.namaJabatan}</td>
@@ -399,7 +439,7 @@ export default function App() {
                             </tr>
                           );
                         })}
-                        {filteredPeta.length === 0 && (
+                        {petaJabatan.length === 0 && (
                           <tr>
                             <td colSpan={6} className="p-12 text-center text-gray-400 italic">
                               Tidak ada data ditemukan
@@ -408,6 +448,32 @@ export default function App() {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  <div className="p-4 border-t border-black/5 flex items-center justify-between bg-gray-50/50">
+                    <div className="text-xs text-gray-500 font-medium">
+                      Menampilkan <span className="text-black">{petaJabatan.length}</span> dari <span className="text-black">{totalRows}</span> data
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+                      >
+                        Prev
+                      </button>
+                      <div className="flex items-center px-2 text-xs font-bold">
+                        {currentPage} / {totalPages}
+                      </div>
+                      <button 
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -430,6 +496,10 @@ export default function App() {
                   onUpdate={fetchData}
                   userRole={userRole}
                   currentUser={currentUser}
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalRows={totalRows}
+                  onPageChange={setCurrentPage}
                 />
               </motion.div>
             ) : view === 'satyalancana' ? (

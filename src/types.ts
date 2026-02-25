@@ -1,6 +1,5 @@
 export interface PetaJabatan {
   id: number;
-  idJabatan: string;
   namaJabatan: string;
   opd: string;
   status: string;

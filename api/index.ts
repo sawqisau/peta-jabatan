@@ -46,9 +46,17 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // Increased to 5MB for Cloudinary
 });
 
+let isInitializing = false;
+let isInitialized = false;
+
 async function initDatabase(retries = 3) {
+  if (isInitialized) return;
+  if (isInitializing) return;
+  isInitializing = true;
+
   if (!sql) {
     console.error("[Database] Cannot initialize: sql client is null. Check DATABASE_URL environment variable.");
+    isInitializing = false;
     return;
   }
   
@@ -62,7 +70,6 @@ async function initDatabase(retries = 3) {
       await sql`
         CREATE TABLE IF NOT EXISTS peta_jabatan (
           id SERIAL PRIMARY KEY,
-          idJabatan TEXT,
           namaJabatan TEXT,
           opd TEXT,
           status TEXT,
@@ -73,144 +80,270 @@ async function initDatabase(retries = 3) {
           catatan TEXT
         );
       `;
+      // Cleanup old columns (migration)
+      try {
+        await sql`ALTER TABLE peta_jabatan DROP COLUMN IF EXISTS idJabatan`;
+        await sql`ALTER TABLE peta_jabatan DROP COLUMN IF EXISTS id_peta`;
+      } catch (e) {
+        console.log("[Database] Migration: Cleanup failed or columns already removed");
+      }
       await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE,
-        password TEXT,
-        role TEXT,
-        opd TEXT,
-        name TEXT
-      );
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS proposals (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        nip TEXT NOT NULL,
-        type TEXT,
-        status TEXT
-      );
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS satyalancana (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        nip TEXT NOT NULL,
-        opd TEXT NOT NULL,
-        type TEXT NOT NULL,
-        keppresNo TEXT,
-        fileUrl TEXT,
-        status TEXT NOT NULL
-      );
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS jabatan_fungsional (
-        id SERIAL PRIMARY KEY,
-        type TEXT NOT NULL,
-        nip TEXT NOT NULL,
-        name TEXT NOT NULL,
-        pangkat TEXT,
-        tmtPangkat TEXT,
-        currentJabatan TEXT,
-        currentJenjang TEXT,
-        tmtJabatan TEXT,
-        opd TEXT NOT NULL,
-        proposedJabatan TEXT,
-        proposedJenjang TEXT,
-        pakNo TEXT,
-        pakAmount TEXT,
-        pakDate TEXT,
-        ujikomNo TEXT,
-        ujikomDate TEXT,
-        fileSkPangkat TEXT,
-        fileSkJabatan TEXT,
-        filePak TEXT,
-        fileUjikom TEXT,
-        fileIjazah TEXT,
-        fileSkp TEXT,
-        filePeta TEXT,
-        fileFormasi TEXT,
-        fileUsulanOpd TEXT,
-        fileKetersediaanFormasi TEXT,
-        whatsapp TEXT,
-        status TEXT NOT NULL
-      );
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS positions (
-        id SERIAL PRIMARY KEY,
-        title TEXT NOT NULL,
-        department TEXT NOT NULL,
-        parentId INTEGER,
-        grade INTEGER DEFAULT 0,
-        bezetting INTEGER DEFAULT 0,
-        required INTEGER DEFAULT 0,
-        description TEXT
-      );
-    `;
-    await sql`
-      CREATE TABLE IF NOT EXISTS employees (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        positionId INTEGER NOT NULL,
-        email TEXT,
-        status TEXT DEFAULT 'active'
-      );
-    `;
-
-    // Ensure Admin User exists
-    const adminEmail = "admin@serangkota.go.id";
-    const users = await sql`SELECT * FROM users WHERE email = ${adminEmail}`;
-    if (users.length === 0) {
-      await sql`
-        INSERT INTO users (email, password, role, opd, name) 
-        VALUES ('admin@serangkota.go.id', 'admin123', 'admin', 'BKPSDM', 'Administrator')
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          email TEXT UNIQUE,
+          password TEXT,
+          role TEXT,
+          opd TEXT,
+          name TEXT
+        );
       `;
-    }
-    console.log("[Database] Database initialized successfully");
-    return; // Success, exit function
-  } catch (error) {
-    console.error(`[Database] Failed to initialize database (attempt ${i + 1}):`, error);
-    if (i === retries - 1) {
-      console.error("[Database] Max retries reached. Database initialization failed.");
-    } else {
-      // Wait a bit before retrying
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await sql`
+        CREATE TABLE IF NOT EXISTS proposals (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          nip TEXT NOT NULL,
+          type TEXT,
+          status TEXT
+        );
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS satyalancana (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          nip TEXT NOT NULL,
+          opd TEXT NOT NULL,
+          type TEXT NOT NULL,
+          keppresNo TEXT,
+          fileUrl TEXT,
+          status TEXT NOT NULL
+        );
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS jabatan_fungsional (
+          id SERIAL PRIMARY KEY,
+          type TEXT NOT NULL,
+          nip TEXT NOT NULL,
+          name TEXT NOT NULL,
+          pangkat TEXT,
+          tmtPangkat TEXT,
+          currentJabatan TEXT,
+          currentJenjang TEXT,
+          tmtJabatan TEXT,
+          opd TEXT NOT NULL,
+          proposedJabatan TEXT,
+          proposedJenjang TEXT,
+          pakNo TEXT,
+          pakAmount TEXT,
+          pakDate TEXT,
+          ujikomNo TEXT,
+          ujikomDate TEXT,
+          fileSkPangkat TEXT,
+          fileSkJabatan TEXT,
+          filePak TEXT,
+          fileUjikom TEXT,
+          fileIjazah TEXT,
+          fileSkp TEXT,
+          filePeta TEXT,
+          fileFormasi TEXT,
+          fileUsulanOpd TEXT,
+          fileKetersediaanFormasi TEXT,
+          whatsapp TEXT,
+          status TEXT NOT NULL
+        );
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS positions (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          department TEXT NOT NULL,
+          parentId INTEGER,
+          grade INTEGER DEFAULT 0,
+          bezetting INTEGER DEFAULT 0,
+          required INTEGER DEFAULT 0,
+          description TEXT
+        );
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS employees (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          positionId INTEGER NOT NULL,
+          email TEXT,
+          status TEXT DEFAULT 'active'
+        );
+      `;
+
+      // Ensure Admin User exists
+      const adminEmail = "admin@serangkota.go.id";
+      const users = await sql`SELECT * FROM users WHERE email = ${adminEmail}`;
+      if (users.length === 0) {
+        await sql`
+          INSERT INTO users (email, password, role, opd, name) 
+          VALUES ('admin@serangkota.go.id', 'admin123', 'admin', 'BKPSDM', 'Administrator')
+        `;
+      }
+      console.log("[Database] Database initialized successfully");
+      isInitialized = true;
+      isInitializing = false;
+      return; // Success, exit function
+    } catch (error) {
+      console.error(`[Database] Failed to initialize database (attempt ${i + 1}):`, error);
+      if (i === retries - 1) {
+        console.error("[Database] Max retries reached. Database initialization failed.");
+        isInitializing = false;
+      } else {
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
     }
   }
 }
-}
 
-// Call database initialization
+// Call database initialization (background)
 initDatabase();
 
 const app = express();
 app.use(express.json());
 
 // Health check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", database: !!sql });
+app.get("/api/health", async (req, res) => {
+  if (!isInitialized) {
+    await initDatabase();
+  }
+  
+  let counts = {};
+  let tables = [];
+  if (sql) {
+    try {
+      const tableList = await sql`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+      `;
+      tables = tableList.map(t => t.table_name);
+
+      const petaCount = await sql`SELECT COUNT(*) FROM peta_jabatan`;
+      const userCount = await sql`SELECT COUNT(*) FROM users`;
+      counts = {
+        peta_jabatan: petaCount[0].count,
+        users: userCount[0].count
+      };
+    } catch (e) {
+      console.error("Failed to get counts/tables:", e);
+    }
+  }
+
+  res.json({ 
+    status: "ok", 
+    database: !!sql, 
+    initialized: isInitialized,
+    initializing: isInitializing,
+    tables,
+    counts
+  });
 });
 
 // API Routes
+app.get("/api/stats", async (req, res) => {
+  if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
+  try {
+    const totalJabatan = await sql`SELECT COUNT(*) FROM peta_jabatan`;
+    const terisi = await sql`SELECT COUNT(*) FROM peta_jabatan WHERE status = 'Terisi'`;
+    const kosong = await sql`SELECT COUNT(*) FROM peta_jabatan WHERE status ILIKE '%kosong%'`;
+    const totalUsulan = await sql`SELECT COUNT(*) FROM proposals`;
+    
+    res.json({
+      totalJabatan: parseInt(totalJabatan[0].count),
+      terisi: parseInt(terisi[0].count),
+      kosong: parseInt(kosong[0].count),
+      totalUsulan: parseInt(totalUsulan[0].count)
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get("/api/peta-jabatan-filters", async (req, res) => {
+  if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
+  try {
+    const opds = await sql`SELECT DISTINCT opd FROM peta_jabatan WHERE opd IS NOT NULL ORDER BY opd ASC`;
+    const statuses = await sql`SELECT DISTINCT status FROM peta_jabatan WHERE status IS NOT NULL ORDER BY status ASC`;
+    
+    res.json({
+      opds: opds.map(r => r.opd),
+      statuses: statuses.map(r => r.status)
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 app.get("/api/peta-jabatan", async (req, res) => {
   if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
   try {
-      const data = await sql`SELECT * FROM peta_jabatan ORDER BY id ASC`;
-      res.json(data);
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
+    const search = (req.query.search as string) || "";
+    const opd = (req.query.opd as string) || "";
+    const status = (req.query.status as string) || "";
+
+    // Build query with filters
+    let query = sql`SELECT * FROM peta_jabatan WHERE 1=1`;
+    let countQuery = sql`SELECT COUNT(*) FROM peta_jabatan WHERE 1=1`;
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      query = sql`${query} AND (namaJabatan ILIKE ${searchPattern} OR namaPegawai ILIKE ${searchPattern} OR nip ILIKE ${searchPattern})`;
+      countQuery = sql`${countQuery} AND (namaJabatan ILIKE ${searchPattern} OR namaPegawai ILIKE ${searchPattern} OR nip ILIKE ${searchPattern})`;
     }
-  });
+    if (opd) {
+      query = sql`${query} AND opd = ${opd}`;
+      countQuery = sql`${countQuery} AND opd = ${opd}`;
+    }
+    if (status) {
+      query = sql`${query} AND status = ${status}`;
+      countQuery = sql`${countQuery} AND status = ${status}`;
+    }
+
+    const totalRes = await countQuery;
+    const total = parseInt(totalRes[0].count);
+
+    const data = await sql`${query} ORDER BY id ASC LIMIT ${limit} OFFSET ${offset}`;
+    
+    // Map snake_case to camelCase for compatibility with frontend
+    const mappedData = data.map((row: any) => ({
+      id: row.id,
+      namaJabatan: row.nama_jabatan || row.namajabatan || row.namaJabatan,
+      opd: row.opd,
+      status: row.status,
+      namaPegawai: row.nama_pegawai || row.namapegawai || row.namaPegawai,
+      nip: row.nip,
+      pangkat: row.pangkat,
+      jenjang: row.jenjang,
+      catatan: row.catatan
+    }));
+
+    res.json({
+      data: mappedData,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error: any) {
+    console.error("[API] Error fetching peta-jabatan:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
   app.post("/api/peta-jabatan", async (req, res) => {
     if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
-      const { idJabatan, namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
+      const { namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
       const result = await sql`
-        INSERT INTO peta_jabatan (idJabatan, namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan) 
-        VALUES (${idJabatan}, ${namaJabatan}, ${opd}, ${status}, ${namaPegawai}, ${nip}, ${pangkat}, ${jenjang}, ${catatan}) 
+        INSERT INTO peta_jabatan (namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan) 
+        VALUES (${namaJabatan}, ${opd}, ${status}, ${namaPegawai}, ${nip}, ${pangkat}, ${jenjang}, ${catatan}) 
         RETURNING id
       `;
       res.json({ id: result[0].id });
@@ -222,11 +355,11 @@ app.get("/api/peta-jabatan", async (req, res) => {
   app.put("/api/peta-jabatan/:id", async (req, res) => {
     if (!sql) return res.status(500).json({ success: false, message: "Database not configured" });
     try {
-      const { idJabatan, namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
+      const { namaJabatan, opd, status, namaPegawai, nip, pangkat, jenjang, catatan } = req.body;
       const id = req.params.id;
       await sql`
         UPDATE peta_jabatan 
-        SET idJabatan = ${idJabatan}, namaJabatan = ${namaJabatan}, opd = ${opd}, status = ${status}, 
+        SET namaJabatan = ${namaJabatan}, opd = ${opd}, status = ${status}, 
             namaPegawai = ${namaPegawai}, nip = ${nip}, pangkat = ${pangkat}, jenjang = ${jenjang}, 
             catatan = ${catatan} 
         WHERE id = ${id}
