@@ -26,6 +26,7 @@ export default function App() {
   const [stats, setStats] = useState({ totalJabatan: 0, terisi: 0, kosong: 0, totalUsulan: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterOpd, setFilterOpd] = useState('');
   const [filterJabatan, setFilterJabatan] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -119,13 +120,13 @@ export default function App() {
   useEffect(() => {
     // If user is OPD, lock the OPD filter
     const effectiveOpd = userRole === 'opd' ? (currentUser?.opd || '') : filterOpd;
-    fetchPetaJabatan(currentPage, searchTerm, effectiveOpd, filterStatus, filterJenjang);
-  }, [currentPage, searchTerm, filterOpd, filterStatus, filterJenjang, userRole, currentUser]);
+    fetchPetaJabatan(currentPage, searchQuery, effectiveOpd, filterStatus, filterJenjang);
+  }, [currentPage, searchQuery, filterOpd, filterStatus, filterJenjang, userRole, currentUser]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterOpd, filterStatus, filterJenjang]);
+  }, [searchQuery, filterOpd, filterStatus, filterJenjang]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,8 +199,13 @@ export default function App() {
     <div className="flex flex-col md:flex-row min-h-screen bg-[#f5f5f5] text-[#141414] font-sans relative">
       {/* Sidebar / Navigation - Desktop */}
       <nav className="hidden md:flex sticky top-0 h-screen w-20 bg-white border-r border-black/5 flex-col items-center py-8 gap-8 z-[100] shrink-0 pointer-events-auto">
-        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white shrink-0 mt-2">
-          <MapIcon size={24} />
+        <div className="w-12 h-12 shrink-0 mt-2">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Flag_of_Serang_City.png/960px-Flag_of_Serang_City.png" 
+            alt="Logo" 
+            className="w-full h-full object-contain"
+            referrerPolicy="no-referrer"
+          />
         </div>
         
         <div className="flex-1 flex flex-col gap-4">
@@ -346,8 +352,15 @@ export default function App() {
       <main className="flex-1 min-h-screen min-w-0 relative z-10 pb-20 md:pb-0">
         <header className="p-4 md:p-8 border-b border-black/5 bg-white/80 backdrop-blur-md sticky top-0 z-30">
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-            <div>
-              <h1 className="text-2xl md:text-4xl font-bold tracking-tight mb-1 md:mb-2">
+            <div className="flex items-center gap-4">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Flag_of_Serang_City.png/960px-Flag_of_Serang_City.png" 
+                alt="Logo Kota Serang" 
+                className="w-12 h-12 md:w-16 md:h-16 object-contain"
+                referrerPolicy="no-referrer"
+              />
+              <div>
+                <h1 className="text-2xl md:text-4xl font-bold tracking-tight mb-1 md:mb-2">
                 {view === 'admin' ? (userRole === 'admin' ? 'DASHPEG - Admin' : 'DASHPEG - OPD') : 
                  view === 'satyalancana' ? 'DASHPEG - Satyalancana' :
                  view === 'jabatan-fungsional' ? 'DASHPEG - Jabatan Fungsional' :
@@ -361,17 +374,32 @@ export default function App() {
                  'Sistem Informasi Kepegawaian & Jabatan (DASHPEG)'}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative w-full md:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Cari..."
-                  className="pl-10 pr-4 py-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none w-full md:w-48"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setSearchQuery(searchTerm);
+                }}
+                className="relative w-full md:w-auto flex gap-2"
+              >
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Cari..."
+                    className="pl-10 pr-4 py-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none w-full md:w-48"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="bg-black text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-800 transition-all"
+                >
+                  Cari
+                </button>
+              </form>
               <select 
                 value={filterOpd}
                 onChange={(e) => setFilterOpd(e.target.value)}

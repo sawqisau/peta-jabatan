@@ -15,6 +15,19 @@ interface BezettingViewProps {
 }
 
 const BezettingView: React.FC<BezettingViewProps> = ({ data }) => {
+  // Ensure data is an array
+  const safeData = Array.isArray(data) ? data : [];
+
+  if (!Array.isArray(data)) {
+    return (
+      <div className="bg-white p-8 rounded-2xl border border-black/5 text-center">
+        <AlertCircle className="mx-auto text-amber-500 mb-4" size={48} />
+        <h3 className="text-lg font-bold mb-2">Gagal Memuat Data</h3>
+        <p className="text-gray-500">Terjadi kesalahan saat mengambil ringkasan bezetting. Silakan coba lagi nanti.</p>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -28,7 +41,7 @@ const BezettingView: React.FC<BezettingViewProps> = ({ data }) => {
             <div className="p-2 bg-black text-white rounded-lg"><LayoutGrid size={20} /></div>
             <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Total OPD</div>
           </div>
-          <div className="text-4xl font-light">{data.length}</div>
+          <div className="text-4xl font-light">{safeData.length}</div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
@@ -36,7 +49,7 @@ const BezettingView: React.FC<BezettingViewProps> = ({ data }) => {
             <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Bezetting</div>
           </div>
           <div className="text-4xl font-light">
-            {data.reduce((acc, curr) => acc + parseInt(curr.total_bezetting || '0'), 0)}
+            {safeData.reduce((acc, curr) => acc + parseInt(String(curr.total_bezetting || '0')), 0)}
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm">
@@ -45,7 +58,7 @@ const BezettingView: React.FC<BezettingViewProps> = ({ data }) => {
             <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Kebutuhan</div>
           </div>
           <div className="text-4xl font-light">
-            {data.reduce((acc, curr) => acc + parseInt(curr.total_kebutuhan || '0'), 0)}
+            {safeData.reduce((acc, curr) => acc + parseInt(String(curr.total_kebutuhan || '0')), 0)}
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm">
@@ -54,7 +67,7 @@ const BezettingView: React.FC<BezettingViewProps> = ({ data }) => {
             <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Total Selisih</div>
           </div>
           <div className="text-4xl font-light text-amber-600">
-            {data.reduce((acc, curr) => acc + parseInt(curr.selisih || '0'), 0)}
+            {safeData.reduce((acc, curr) => acc + parseInt(String(curr.selisih || '0')), 0)}
           </div>
         </div>
       </div>
@@ -75,14 +88,14 @@ const BezettingView: React.FC<BezettingViewProps> = ({ data }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {data.map((item, idx) => (
+              {safeData.map((item, idx) => (
                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                   <td className="p-4 font-medium">{item.opd}</td>
                   <td className="p-4 text-center font-mono">{item.total_jabatan}</td>
                   <td className="p-4 text-center font-mono text-emerald-600">{item.total_bezetting}</td>
                   <td className="p-4 text-center font-mono text-blue-600">{item.total_kebutuhan}</td>
-                  <td className={`p-4 text-center font-mono font-bold ${parseInt(item.selisih) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    {parseInt(item.selisih) > 0 ? `+${item.selisih}` : item.selisih}
+                  <td className={`p-4 text-center font-mono font-bold ${parseInt(String(item.selisih)) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {parseInt(String(item.selisih)) > 0 ? `+${item.selisih}` : item.selisih}
                   </td>
                 </tr>
               ))}

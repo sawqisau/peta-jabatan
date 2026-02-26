@@ -87,8 +87,12 @@ async function initDatabase(retries = 3) {
       try {
         await sql`ALTER TABLE peta_jabatan DROP COLUMN IF EXISTS idJabatan`;
         await sql`ALTER TABLE peta_jabatan DROP COLUMN IF EXISTS id_peta`;
+        // Ensure new columns exist
+        await sql`ALTER TABLE peta_jabatan ADD COLUMN IF NOT EXISTS kelas TEXT`;
+        await sql`ALTER TABLE peta_jabatan ADD COLUMN IF NOT EXISTS bezetting INTEGER DEFAULT 0`;
+        await sql`ALTER TABLE peta_jabatan ADD COLUMN IF NOT EXISTS kebutuhan INTEGER DEFAULT 0`;
       } catch (e) {
-        console.log("[Database] Migration: Cleanup failed or columns already removed");
+        console.log("[Database] Migration: Cleanup or column addition failed/already done");
       }
       await sql`
         CREATE TABLE IF NOT EXISTS users (
@@ -203,10 +207,16 @@ async function initDatabase(retries = 3) {
 }
 
 // Call database initialization (background)
-initDatabase();
+initDatabase().catch(err => console.error("[Database] Background init failed:", err));
 
 const app = express();
 app.use(express.json());
+
+// Request logger
+app.use((req, res, next) => {
+  console.log(`[Server] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
 
 // Health check
 app.get("/api/health", async (req, res) => {
@@ -334,32 +344,27 @@ app.get("/api/peta-jabatan", async (req, res) => {
     const status = (req.query.status as string) || "";
     const jenjang = (req.query.jenjang as string) || "";
 
-    // Build query with filters
-    let query = sql`SELECT * FROM peta_jabatan WHERE 1=1`;
-    let countQuery = sql`SELECT COUNT(*) FROM peta_jabatan WHERE 1=1`;
-
-    if (search) {
-      const searchPattern = `%${search}%`;
-      query = sql`${query} AND (namaJabatan ILIKE ${searchPattern} OR namaPegawai ILIKE ${searchPattern} OR nip ILIKE ${searchPattern})`;
-      countQuery = sql`${countQuery} AND (namaJabatan ILIKE ${searchPattern} OR namaPegawai ILIKE ${searchPattern} OR nip ILIKE ${searchPattern})`;
-    }
-    if (opd) {
-      query = sql`${query} AND opd = ${opd}`;
-      countQuery = sql`${countQuery} AND opd = ${opd}`;
-    }
-    if (status) {
-      query = sql`${query} AND status = ${status}`;
-      countQuery = sql`${countQuery} AND status = ${status}`;
-    }
-    if (jenjang) {
-      query = sql`${query} AND jenjang = ${jenjang}`;
-      countQuery = sql`${countQuery} AND jenjang = ${jenjang}`;
-    }
-
-    const totalRes = await countQuery;
+    // Build query with filters using nested sql tags
+    const totalRes = await sql`
+      SELECT COUNT(*) FROM peta_jabatan 
+      WHERE 1=1
+      ${search ? sql`AND (namaJabatan ILIKE ${`%${search}%`} OR namaPegawai ILIKE ${`%${search}%`} OR nip ILIKE ${`%${search}%`})` : sql``}
+      ${opd ? sql`AND opd = ${opd}` : sql``}
+      ${status ? sql`AND status = ${status}` : sql``}
+      ${jenjang ? sql`AND jenjang = ${jenjang}` : sql``}
+    `;
     const total = parseInt(totalRes[0].count);
 
-    const data = await sql`${query} ORDER BY id ASC LIMIT ${limit} OFFSET ${offset}`;
+    const data = await sql`
+      SELECT * FROM peta_jabatan 
+      WHERE 1=1
+      ${search ? sql`AND (namaJabatan ILIKE ${`%${search}%`} OR namaPegawai ILIKE ${`%${search}%`} OR nip ILIKE ${`%${search}%`})` : sql``}
+      ${opd ? sql`AND opd = ${opd}` : sql``}
+      ${status ? sql`AND status = ${status}` : sql``}
+      ${jenjang ? sql`AND jenjang = ${jenjang}` : sql``}
+      ORDER BY id ASC 
+      LIMIT ${limit} OFFSET ${offset}
+    `;
     
     // Map snake_case to camelCase for compatibility with frontend
     const mappedData = data.map((row: any) => ({
@@ -800,11 +805,15 @@ app.get("/api/peta-jabatan", async (req, res) => {
     });
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    const PORT = process.env.PORT || 3000;
-    app.listen(Number(PORT), "0.0.0.0", () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  }
+  const PORT = process.env.PORT || 3000;
+  const server = app.listen(Number(PORT), "0.0.0.0", () => {
+    console.log(`[Server] Started and listening on http://0.0.0.0:${PORT}`);
+    console.log(`[Server] Current directory: ${process.cwd()}`);
+    console.log(`[Server] __dirname: ${__dirname}`);
+  });
+
+  server.on('error', (err) => {
+    console.error("[Server] Listen error:", err);
+  });
 
 export default app;
