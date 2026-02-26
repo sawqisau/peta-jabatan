@@ -142,6 +142,9 @@ export default function App() {
       if (data.success) {
         setUserRole(data.role);
         setCurrentUser({ name: data.name, opd: data.opd });
+        if (data.opd) {
+          setFilterOpd(data.opd);
+        }
         setView('admin');
         setShowLoginModal(false);
         setUsername('');
@@ -162,6 +165,9 @@ export default function App() {
   const handleLogout = () => {
     setUserRole('public');
     setCurrentUser(null);
+    setFilterOpd('');
+    setSearchQuery('');
+    setSearchTerm('');
     setView('public');
   };
 
@@ -263,15 +269,6 @@ export default function App() {
             title="Usulan Jabatan Fungsional"
           >
             <Briefcase size={24} />
-          </button>
-
-          <button 
-            type="button"
-            onClick={() => setView('ticketing')}
-            className={`p-4 rounded-xl transition-all cursor-pointer flex items-center justify-center relative z-[110] ${view === 'ticketing' ? 'bg-black text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}
-            title="Ticketing / Cek Status"
-          >
-            <Ticket size={24} />
           </button>
         </div>
 
@@ -401,12 +398,17 @@ export default function App() {
                 </button>
               </form>
               <select 
-                value={filterOpd}
+                value={userRole === 'opd' ? (currentUser?.opd || '') : filterOpd}
                 onChange={(e) => setFilterOpd(e.target.value)}
-                className="p-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none max-w-[150px]"
+                disabled={userRole === 'opd'}
+                className={`p-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black/5 outline-none max-w-[150px] ${userRole === 'opd' ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                <option value="">Semua OPD</option>
-                {uniqueOpds.map(opd => <option key={opd} value={opd}>{opd}</option>)}
+                {userRole !== 'opd' && <option value="">Semua OPD</option>}
+                {userRole === 'opd' ? (
+                  <option value={currentUser?.opd}>{currentUser?.opd}</option>
+                ) : (
+                  uniqueOpds.map(opd => <option key={opd} value={opd}>{opd}</option>)
+                )}
               </select>
               <select 
                 value={filterJenjang}
@@ -561,13 +563,10 @@ export default function App() {
                 transition={{ duration: 0.3 }}
               >
                 <AdminPanel 
-                  positions={positions} 
-                  employees={employees} 
                   proposals={proposals}
                   petaJabatan={petaJabatan}
                   satyalancana={satyalancana}
                   jabatanFungsional={jabatanFungsional}
-                  unifiedProposals={unifiedProposals}
                   onUpdate={fetchData}
                   userRole={userRole}
                   currentUser={currentUser}
@@ -591,7 +590,7 @@ export default function App() {
                   currentUser={currentUser}
                 />
               </motion.div>
-            ) : view === 'jabatan-fungsional' ? (
+            ) : (
               <motion.div
                 key="jabatan-fungsional"
                 initial={{ opacity: 0, y: 20 }}
@@ -603,19 +602,6 @@ export default function App() {
                   data={jabatanFungsional}
                   onUpdate={fetchData}
                   currentUser={currentUser}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="ticketing"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <TicketingView 
-                  proposals={unifiedProposals}
-                  searchTerm={searchTerm}
                 />
               </motion.div>
             )}
