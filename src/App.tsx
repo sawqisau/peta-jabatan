@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LayoutDashboard, Users, Shield, LogOut, Map as MapIcon, Briefcase, UserCircle, Search, FileText, Medal, Plus, UserPlus, Edit2, Trash2, Ticket, BarChart3, LayoutGrid } from 'lucide-react';
+import { LayoutDashboard, Users, Shield, LogOut, Map as MapIcon, Briefcase, UserCircle, Search, FileText, Medal, Plus, UserPlus, Edit2, Trash2, BarChart3, LayoutGrid, Clock } from 'lucide-react';
 import AdminPanel from './components/AdminPanel';
 import SatyalancanaView from './components/SatyalancanaView';
 import JabatanFungsionalView from './components/JabatanFungsionalView';
-import TicketingView from './components/TicketingView';
 import JenjangView from './components/JenjangView';
 import BezettingView from './components/BezettingView';
+import HistoryView from './components/HistoryView';
 import { Position, Employee, Proposal, PetaJabatan, Satyalancana, JabatanFungsional, UnifiedProposal } from './types';
 
 export default function App() {
-  const [view, setView] = useState<'public' | 'admin' | 'satyalancana' | 'jabatan-fungsional' | 'ticketing' | 'jenjang' | 'bezetting'>('public');
+  const [view, setView] = useState<'public' | 'admin' | 'satyalancana' | 'jabatan-fungsional' | 'jenjang' | 'bezetting' | 'history'>('public');
   const [isAdmin, setIsAdmin] = useState(false);
   const [positions, setPositions] = useState<Position[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -270,6 +270,15 @@ export default function App() {
           >
             <Briefcase size={24} />
           </button>
+
+          <button 
+            type="button"
+            onClick={() => setView('history')}
+            className={`p-4 rounded-xl transition-all cursor-pointer flex items-center justify-center relative z-[110] ${view === 'history' ? 'bg-black text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}
+            title="Riwayat Usulan"
+          >
+            <Clock size={24} />
+          </button>
         </div>
 
         <div className="mt-auto mb-8 flex flex-col gap-4">
@@ -328,10 +337,10 @@ export default function App() {
         </button>
 
         <button 
-          onClick={() => setView('ticketing')}
-          className={`p-3 rounded-xl transition-all ${view === 'ticketing' ? 'bg-black text-white' : 'text-gray-400'}`}
+          onClick={() => setView('history')}
+          className={`p-3 rounded-xl transition-all ${view === 'history' ? 'bg-black text-white' : 'text-gray-400'}`}
         >
-          <Ticket size={20} />
+          <Clock size={20} />
         </button>
 
         {userRole === 'public' ? (
@@ -589,6 +598,16 @@ export default function App() {
                   onUpdate={fetchData}
                   currentUser={currentUser}
                 />
+              </motion.div>
+            ) : view === 'history' ? (
+              <motion.div
+                key="history"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <HistoryView proposals={unifiedProposals} />
               </motion.div>
             ) : (
               <motion.div

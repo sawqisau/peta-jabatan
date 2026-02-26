@@ -58,6 +58,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  const handleStatusUpdate = async (id: number, type: string, newStatus: string) => {
+    await fetch(`/api/${type}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    onUpdate();
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -250,13 +259,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   <td className="p-4 text-gray-600 text-sm">{item.opd}</td>
                   <td className="p-4 text-gray-600">{item.type}</td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
-                      item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      {item.status}
-                    </span>
+                    {userRole === 'admin' ? (
+                      <select 
+                        value={item.status}
+                        onChange={(e) => handleStatusUpdate(item.id, 'satyalancana', e.target.value)}
+                        className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer ${
+                          item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
+                          item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
+                          'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        <option value="Diajukan">Diajukan</option>
+                        <option value="Diproses">Diproses</option>
+                        <option value="Selesai">Selesai</option>
+                      </select>
+                    ) : (
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
+                        item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {item.status}
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
@@ -281,13 +306,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   <td className="p-4 text-gray-600 text-sm">{item.opd}</td>
                   <td className="p-4 text-gray-600 text-sm">{item.type}</td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
-                      item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      {item.status}
-                    </span>
+                    {userRole === 'admin' ? (
+                      <select 
+                        value={item.status}
+                        onChange={(e) => handleStatusUpdate(item.id, 'jabatan-fungsional', e.target.value)}
+                        className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer ${
+                          item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
+                          item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
+                          'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        <option value="Diajukan">Diajukan</option>
+                        <option value="Diproses">Diproses</option>
+                        <option value="Selesai">Selesai</option>
+                      </select>
+                    ) : (
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
+                        item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {item.status}
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
@@ -470,36 +511,69 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama</label>
-                      <input name="name" defaultValue={editingItem?.name} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
-                      <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                    </div>
-                    {userRole === 'admin' ? (
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold border-b pb-1">Informasi Umum</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
-                        <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis Usulan</label>
+                        <select name="type" defaultValue={editingItem?.type || "Kenaikan Jenjang Jabatan Fungsional"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                          <option value="Kenaikan Jenjang Jabatan Fungsional">Kenaikan Jenjang Jabatan Fungsional</option>
+                          <option value="Perpindahan ke dalam Jabatan Fungsional">Perpindahan ke dalam Jabatan Fungsional</option>
+                          <option value="Pengukuhan Jabatan Fungsional">Pengukuhan Jabatan Fungsional</option>
+                        </select>
                       </div>
-                    ) : (
-                      <input type="hidden" name="opd" value={currentUser?.opd || ''} />
-                    )}
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis Usulan</label>
-                      <select name="type" defaultValue={editingItem?.type || "Kenaikan Jenjang Jabatan Fungsional"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
-                        <option value="Kenaikan Jenjang Jabatan Fungsional">Kenaikan Jenjang Jabatan Fungsional</option>
-                        <option value="Perpindahan ke dalam Jabatan Fungsional">Perpindahan ke dalam Jabatan Fungsional</option>
-                        <option value="Pengukuhan Jabatan Fungsional">Pengukuhan Jabatan Fungsional</option>
-                      </select>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Lengkap & Gelar</label>
+                        <input name="name" defaultValue={editingItem?.name} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
+                        <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      {userRole === 'admin' ? (
+                        <div>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD / Unit Kerja</label>
+                          <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                        </div>
+                      ) : (
+                        <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                      )}
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nomor WhatsApp</label>
+                        <input name="whatsapp" defaultValue={editingItem?.whatsapp} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" placeholder="0812..." />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jabatan Diusulkan</label>
-                      <input name="proposedJabatan" defaultValue={editingItem?.proposedJabatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold border-b pb-1">Data Jabatan Saat Ini</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Pangkat/Golongan</label>
+                        <input name="pangkat" defaultValue={editingItem?.pangkat} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">TMT Pangkat</label>
+                        <input name="tmtPangkat" type="date" defaultValue={editingItem?.tmtPangkat} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jabatan Saat Ini</label>
+                        <input name="currentJabatan" defaultValue={editingItem?.currentJabatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenjang Jabatan</label>
+                        <input name="currentJenjang" defaultValue={editingItem?.currentJenjang} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">TMT Jabatan</label>
+                        <input name="tmtJabatan" type="date" defaultValue={editingItem?.tmtJabatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold border-b pb-1">Status Usulan</h4>
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
                       <select 
@@ -515,7 +589,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
                     </div>
                   </div>
-                </>
+                </div>
               )}
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 border border-black/10 rounded-lg hover:bg-gray-50 transition-all">Batal</button>
