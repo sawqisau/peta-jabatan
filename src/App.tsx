@@ -7,10 +7,11 @@ import JabatanFungsionalView from './components/JabatanFungsionalView';
 import JenjangView from './components/JenjangView';
 import BezettingView from './components/BezettingView';
 import HistoryView from './components/HistoryView';
+import TicketingView from './components/TicketingView';
 import { Position, Employee, Proposal, PetaJabatan, Satyalancana, JabatanFungsional, UnifiedProposal } from './types';
 
 export default function App() {
-  const [view, setView] = useState<'public' | 'admin' | 'satyalancana' | 'jabatan-fungsional' | 'jenjang' | 'bezetting' | 'history'>('public');
+  const [view, setView] = useState<'public' | 'admin' | 'satyalancana' | 'jabatan-fungsional' | 'jenjang' | 'bezetting' | 'history' | 'ticketing'>('public');
   const [isAdmin, setIsAdmin] = useState(false);
   const [positions, setPositions] = useState<Position[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -279,6 +280,15 @@ export default function App() {
           >
             <Clock size={24} />
           </button>
+
+          <button 
+            type="button"
+            onClick={() => setView('ticketing')}
+            className={`p-4 rounded-xl transition-all cursor-pointer flex items-center justify-center relative z-[110] ${view === 'ticketing' ? 'bg-black text-white shadow-lg' : 'text-gray-400 hover:bg-gray-100'}`}
+            title="Ticketing / Kelola Usulan"
+          >
+            <Ticket size={24} />
+          </button>
         </div>
 
         <div className="mt-auto mb-8 flex flex-col gap-4">
@@ -341,6 +351,13 @@ export default function App() {
           className={`p-3 rounded-xl transition-all ${view === 'history' ? 'bg-black text-white' : 'text-gray-400'}`}
         >
           <Clock size={20} />
+        </button>
+
+        <button 
+          onClick={() => setView('ticketing')}
+          className={`p-3 rounded-xl transition-all ${view === 'ticketing' ? 'bg-black text-white' : 'text-gray-400'}`}
+        >
+          <Ticket size={20} />
         </button>
 
         {userRole === 'public' ? (
@@ -572,10 +589,7 @@ export default function App() {
                 transition={{ duration: 0.3 }}
               >
                 <AdminPanel 
-                  proposals={proposals}
                   petaJabatan={petaJabatan}
-                  satyalancana={satyalancana}
-                  jabatanFungsional={jabatanFungsional}
                   onUpdate={fetchData}
                   userRole={userRole}
                   currentUser={currentUser}
