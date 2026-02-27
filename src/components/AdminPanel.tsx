@@ -3,7 +3,10 @@ import { Position, Employee, Proposal, PetaJabatan, Satyalancana, JabatanFungsio
 import { Plus, Trash2, Edit2, UserPlus, FileText, Map as MapIcon, Medal, Download, Briefcase, Ticket } from 'lucide-react';
 
 interface AdminPanelProps {
+  proposals: Proposal[];
   petaJabatan: PetaJabatan[];
+  satyalancana: Satyalancana[];
+  jabatanFungsional: JabatanFungsional[];
   onUpdate: () => void;
   userRole: 'admin' | 'opd';
   currentUser: { name: string; opd: string } | null;
@@ -14,9 +17,11 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
-  petaJabatan, onUpdate, userRole, 
+  proposals, petaJabatan, satyalancana, 
+  jabatanFungsional, onUpdate, userRole, 
   currentUser, currentPage, totalPages, totalRows, onPageChange 
 }) => {
+  const [activeTab, setActiveTab] = useState<'proposals' | 'peta-jabatan' | 'satyalancana' | 'jabatan-fungsional'>('peta-jabatan');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
 
@@ -27,11 +32,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     ? petaJabatan
     : petaJabatan.filter(p => p.opd === currentUser?.opd);
     
+  const filteredProposalsList = userRole === 'admin'
+    ? proposals
+    : proposals.filter(p => {
+        // Try to find the OPD from the source tables
+        const satya = satyalancana.find(s => s.nip === p.nip);
+        if (satya) return satya.opd === currentUser?.opd;
+        const jf = jabatanFungsional.find(j => j.nip === p.nip);
+        if (jf) return jf.opd === currentUser?.opd;
+        return false;
+      });
+    
+  const filteredSatya = userRole === 'admin'
+    ? satyalancana
+    : satyalancana.filter(s => s.opd === currentUser?.opd);
+
+  const filteredJF = userRole === 'admin'
+    ? jabatanFungsional
+    : jabatanFungsional.filter(j => j.opd === currentUser?.opd);
+
   const handleDelete = async (id: number, type: string) => {
     if (confirm(`Hapus ${type} ini?`)) {
       await fetch(`/api/${type}/${id}`, { method: 'DELETE' });
       onUpdate();
     }
+  };
+
+  const handleStatusUpdate = async (id: number, type: string, newStatus: string) => {
+    await fetch(`/api/${type}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    onUpdate();
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -41,10 +74,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     
     // Auto-fill OPD for OPD users
     if (userRole === 'opd' && currentUser?.opd) {
-      (data as any).opd = currentUser.opd;
+      if (activeTab === 'peta-jabatan') (data as any).opd = currentUser.opd;
+      if (activeTab === 'satyalancana') (data as any).opd = currentUser.opd;
+      if (activeTab === 'jabatan-fungsional') (data as any).opd = currentUser.opd;
     }
     
-    const endpoint = `/api/peta-jabatan`;
+    const endpoint = `/api/${activeTab}`;
     const method = editingItem ? 'PUT' : 'POST';
     const url = editingItem ? `${endpoint}/${editingItem.id}` : endpoint;
 
@@ -74,9 +109,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto scrollbar-hide">
-          <div className="px-4 py-2 rounded-lg bg-black text-white whitespace-nowrap">
+          <button 
+            onClick={() => setActiveTab('peta-jabatan')}
+            className={`px-4 py-2 rounded-lg transition-all whitespace-nowrap ${activeTab === 'peta-jabatan' ? 'bg-black text-white' : 'bg-white text-black border border-black/10'}`}
+          >
             Peta Jabatan
-          </div>
+          </button>
         </div>
         <button 
           onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
@@ -137,94 +175,254 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         </table>
         </div>
         
-        <div className="p-4 border-t border-black/5 flex items-center justify-between bg-gray-50/50 rounded-b-2xl">
-          <div className="text-xs text-gray-500 font-medium">
-            Menampilkan <span className="text-black">{petaJabatan.length}</span> dari <span className="text-black">{totalRows}</span> data
-          </div>
-          <div className="flex gap-2">
-            <button 
-              disabled={currentPage === 1}
-              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-              className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
-            >
-              Prev
-            </button>
-            <div className="flex items-center px-2 text-xs font-bold">
-              {currentPage} / {totalPages}
+        {activeTab === 'peta-jabatan' && (
+          <div className="p-4 border-t border-black/5 flex items-center justify-between bg-gray-50/50 rounded-b-2xl">
+            <div className="text-xs text-gray-500 font-medium">
+              Menampilkan <span className="text-black">{petaJabatan.length}</span> dari <span className="text-black">{totalRows}</span> data
             </div>
-            <button 
-              disabled={currentPage === totalPages}
-              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-              className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
-            >
-              Next
-            </button>
+            <div className="flex gap-2">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+              >
+                Prev
+              </button>
+              <div className="flex items-center px-2 text-xs font-bold">
+                {currentPage} / {totalPages}
+              </div>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-[200] overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-2xl my-8">
             <h3 className="text-xl font-bold mb-6">
-              {editingItem ? 'Edit' : 'Tambah'} Peta
+              {editingItem ? 'Edit' : 'Tambah'} {activeTab === 'peta-jabatan' ? 'Peta' : activeTab === 'proposals' ? 'Usulan' : activeTab === 'satyalancana' ? 'Satya' : 'JF'}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Jabatan</label>
-                  <input name="namaJabatan" defaultValue={editingItem?.namaJabatan} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                {userRole === 'admin' ? (
+              {activeTab === 'peta-jabatan' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
-                    <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Jabatan</label>
+                    <input name="namaJabatan" defaultValue={editingItem?.namaJabatan} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
                   </div>
-                ) : (
-                  <input type="hidden" name="opd" value={currentUser?.opd || ''} />
-                )}
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
-                  <select name="status" defaultValue={editingItem?.status || "Kosong"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
-                    <option value="Terisi">Terisi</option>
-                    <option value="Kosong">Kosong</option>
-                    <option value="Kosong-Purnabakti">Kosong-Purnabakti</option>
-                    <option value="Kosong-Meninggal">Kosong-Meninggal</option>
-                  </select>
+                  {userRole === 'admin' ? (
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
+                      <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    </div>
+                  ) : (
+                    <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                  )}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
+                    <select name="status" defaultValue={editingItem?.status || "Kosong"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                      <option value="Terisi">Terisi</option>
+                      <option value="Kosong">Kosong</option>
+                      <option value="Kosong-Purnabakti">Kosong-Purnabakti</option>
+                      <option value="Kosong-Meninggal">Kosong-Meninggal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Pegawai</label>
+                    <input name="namaPegawai" defaultValue={editingItem?.namaPegawai} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
+                    <input name="nip" defaultValue={editingItem?.nip} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Pangkat/Golongan</label>
+                    <input name="pangkat" defaultValue={editingItem?.pangkat} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenjang</label>
+                    <input name="jenjang" defaultValue={editingItem?.jenjang} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kelas Jabatan</label>
+                    <input name="kelas" defaultValue={editingItem?.kelas} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Bezetting</label>
+                    <input name="bezetting" type="number" defaultValue={editingItem?.bezetting || 0} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kebutuhan</label>
+                    <input name="kebutuhan" type="number" defaultValue={editingItem?.kebutuhan || 0} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Catatan</label>
+                    <textarea name="catatan" defaultValue={editingItem?.catatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" rows={2} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Pegawai</label>
-                  <input name="namaPegawai" defaultValue={editingItem?.namaPegawai} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+              ) : activeTab === 'proposals' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Lengkap</label>
+                    <input name="name" defaultValue={editingItem?.name} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
+                    <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis Usulan</label>
+                    <input name="type" defaultValue={editingItem?.type} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
+                    <select 
+                      name="status" 
+                      defaultValue={editingItem?.status || "Diajukan"} 
+                      disabled={userRole !== 'admin'}
+                      className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole !== 'admin' ? 'bg-gray-50 opacity-70' : ''}`}
+                    >
+                      <option value="Diajukan">Diajukan</option>
+                      <option value="Diproses">Diproses</option>
+                      <option value="Selesai">Selesai</option>
+                    </select>
+                    {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
+                  </div>
+                </>
+              ) : activeTab === 'satyalancana' ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama</label>
+                      <input name="name" defaultValue={editingItem?.name} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
+                      <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    </div>
+                    {userRole === 'admin' ? (
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD</label>
+                        <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                    ) : (
+                      <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                    )}
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis</label>
+                      <select name="type" defaultValue={editingItem?.type || "X TAHUN"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                        <option value="X TAHUN">X TAHUN</option>
+                        <option value="XX TAHUN">XX TAHUN</option>
+                        <option value="XXX TAHUN">XXX TAHUN</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">No Keppres</label>
+                      <input name="keppresNo" defaultValue={editingItem?.keppresNo} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
+                      <select 
+                        name="status" 
+                        defaultValue={editingItem?.status || "Diajukan"} 
+                        disabled={userRole !== 'admin'}
+                        className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole !== 'admin' ? 'bg-gray-50 opacity-70' : ''}`}
+                      >
+                        <option value="Diajukan">Diajukan</option>
+                        <option value="Diproses">Diproses</option>
+                        <option value="Selesai">Selesai</option>
+                      </select>
+                      {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold border-b pb-1">Informasi Umum</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenis Usulan</label>
+                        <select name="type" defaultValue={editingItem?.type || "Kenaikan Jenjang Jabatan Fungsional"} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none">
+                          <option value="Kenaikan Jenjang Jabatan Fungsional">Kenaikan Jenjang Jabatan Fungsional</option>
+                          <option value="Perpindahan ke dalam Jabatan Fungsional">Perpindahan ke dalam Jabatan Fungsional</option>
+                          <option value="Pengukuhan Jabatan Fungsional">Pengukuhan Jabatan Fungsional</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nama Lengkap & Gelar</label>
+                        <input name="name" defaultValue={editingItem?.name} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
+                        <input name="nip" defaultValue={editingItem?.nip} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      {userRole === 'admin' ? (
+                        <div>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">OPD / Unit Kerja</label>
+                          <input name="opd" defaultValue={editingItem?.opd || ''} required className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                        </div>
+                      ) : (
+                        <input type="hidden" name="opd" value={currentUser?.opd || ''} />
+                      )}
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Nomor WhatsApp</label>
+                        <input name="whatsapp" defaultValue={editingItem?.whatsapp} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" placeholder="0812..." />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold border-b pb-1">Data Jabatan Saat Ini</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Pangkat/Golongan</label>
+                        <input name="pangkat" defaultValue={editingItem?.pangkat} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">TMT Pangkat</label>
+                        <input name="tmtPangkat" type="date" defaultValue={editingItem?.tmtPangkat} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jabatan Saat Ini</label>
+                        <input name="currentJabatan" defaultValue={editingItem?.currentJabatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenjang Jabatan</label>
+                        <input name="currentJenjang" defaultValue={editingItem?.currentJenjang} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">TMT Jabatan</label>
+                        <input name="tmtJabatan" type="date" defaultValue={editingItem?.tmtJabatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold border-b pb-1">Status Usulan</h4>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Status</label>
+                      <select 
+                        name="status" 
+                        defaultValue={editingItem?.status || "Diajukan"} 
+                        disabled={userRole !== 'admin'}
+                        className={`w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none ${userRole !== 'admin' ? 'bg-gray-50 opacity-70' : ''}`}
+                      >
+                        <option value="Diajukan">Diajukan</option>
+                        <option value="Diproses">Diproses</option>
+                        <option value="Selesai">Selesai</option>
+                      </select>
+                      {userRole !== 'admin' && <input type="hidden" name="status" value={editingItem?.status || "Diajukan"} />}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">NIP</label>
-                  <input name="nip" defaultValue={editingItem?.nip} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Pangkat/Golongan</label>
-                  <input name="pangkat" defaultValue={editingItem?.pangkat} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Jenjang</label>
-                  <input name="jenjang" defaultValue={editingItem?.jenjang} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kelas Jabatan</label>
-                  <input name="kelas" defaultValue={editingItem?.kelas} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Bezetting</label>
-                  <input name="bezetting" type="number" defaultValue={editingItem?.bezetting || 0} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Kebutuhan</label>
-                  <input name="kebutuhan" type="number" defaultValue={editingItem?.kebutuhan || 0} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Catatan</label>
-                  <textarea name="catatan" defaultValue={editingItem?.catatan} className="w-full p-2 border border-black/10 rounded-lg focus:ring-2 focus:ring-black/5 outline-none" rows={2} />
-                </div>
-              </div>
+              )}
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 border border-black/10 rounded-lg hover:bg-gray-50 transition-all">Batal</button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-black/90 transition-all">Simpan</button>

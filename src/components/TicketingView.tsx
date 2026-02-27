@@ -1,17 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Ticket, Search, Download } from 'lucide-react';
+import { Ticket, Search, Download, Clock, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { UnifiedProposal } from '../types';
 
 interface TicketingViewProps {
   proposals: UnifiedProposal[];
-  searchTerm: string;
-  userRole: 'admin' | 'opd' | 'public';
   onUpdate: () => void;
+  userRole: 'admin' | 'opd' | 'public';
 }
 
-const TicketingView: React.FC<TicketingViewProps> = ({ proposals, searchTerm, userRole, onUpdate }) => {
-  const [currentPage, setCurrentPage] = React.useState(1);
+const TicketingView: React.FC<TicketingViewProps> = ({ proposals, onUpdate, userRole }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const filteredProposals = proposals.filter(p => 
@@ -25,8 +25,7 @@ const TicketingView: React.FC<TicketingViewProps> = ({ proposals, searchTerm, us
   const paginatedProposals = filteredProposals.slice(startIndex, startIndex + itemsPerPage);
 
   const handleStatusUpdate = async (id: number, type: string, newStatus: string) => {
-    const endpoint = type === 'satyalancana' ? '/api/satyalancana' : '/api/jabatan-fungsional';
-    await fetch(`${endpoint}/${id}`, {
+    await fetch(`/api/${type}/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
@@ -42,8 +41,27 @@ const TicketingView: React.FC<TicketingViewProps> = ({ proposals, searchTerm, us
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Cek Status Usulan (Ticketing)</h2>
-          <p className="text-sm md:text-gray-500 mt-1">Pantau status pengajuan Satyalancana dan Jabatan Fungsional Anda</p>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Monitoring Usulan (Ticketing)</h2>
+          <p className="text-sm md:text-gray-500 mt-1">Daftar semua usulan Satyalancana dan Jabatan Fungsional</p>
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-3xl border border-black/5 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text"
+            placeholder="Cari Nama, NIP, atau Jenis Usulan..."
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-black/5 rounded-xl outline-none focus:ring-2 focus:ring-black/5 transition-all"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+          Total: {filteredProposals.length} Usulan
         </div>
       </div>
 
@@ -66,15 +84,17 @@ const TicketingView: React.FC<TicketingViewProps> = ({ proposals, searchTerm, us
                     <div className="text-xs text-gray-400 font-mono">{item.nip}</div>
                   </td>
                   <td className="p-4 text-gray-600 text-sm">{item.jenisUsulan}</td>
-                  <td className="p-4 text-gray-500 text-xs uppercase tracking-wider font-bold">
-                    {item.sourceTable === 'satyalancana' ? 'Satya' : 'JF'}
+                  <td className="p-4 text-gray-500 text-[10px] uppercase tracking-wider font-bold">
+                    <span className="px-2 py-1 bg-gray-100 rounded-md">
+                      {item.sourceTable === 'satyalancana' ? 'Satyalancana' : 'Jabatan Fungsional'}
+                    </span>
                   </td>
                   <td className="p-4">
                     {userRole === 'admin' ? (
                       <select 
                         value={item.status}
                         onChange={(e) => handleStatusUpdate(item.id, item.sourceTable, e.target.value)}
-                        className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer ${
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer border-none ${
                           item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
                           item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
                           'bg-amber-100 text-amber-700'
@@ -85,13 +105,16 @@ const TicketingView: React.FC<TicketingViewProps> = ({ proposals, searchTerm, us
                         <option value="Selesai">Selesai</option>
                       </select>
                     ) : (
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider w-fit ${
                         item.status.toLowerCase() === 'diajukan' ? 'bg-blue-100 text-blue-700' : 
                         item.status.toLowerCase() === 'selesai' ? 'bg-emerald-100 text-emerald-700' : 
                         'bg-amber-100 text-amber-700'
                       }`}>
+                        {item.status.toLowerCase() === 'selesai' ? <CheckCircle2 size={12} /> : 
+                         item.status.toLowerCase() === 'diproses' ? <Clock size={12} /> : 
+                         <AlertCircle size={12} />}
                         {item.status}
-                      </span>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -106,29 +129,26 @@ const TicketingView: React.FC<TicketingViewProps> = ({ proposals, searchTerm, us
             </tbody>
           </table>
         </div>
-        
+
         {totalPages > 1 && (
           <div className="p-4 border-t border-black/5 flex items-center justify-between bg-gray-50/50">
             <div className="text-xs text-gray-500 font-medium">
-              Menampilkan <span className="text-black">{startIndex + 1}</span> - <span className="text-black">{Math.min(startIndex + itemsPerPage, filteredProposals.length)}</span> dari <span className="text-black">{filteredProposals.length}</span> data
+              Halaman <span className="text-black">{currentPage}</span> dari <span className="text-black">{totalPages}</span>
             </div>
             <div className="flex gap-2">
               <button 
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="p-2 border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
               >
-                Prev
+                <ChevronLeft size={16} />
               </button>
-              <div className="flex items-center px-2 text-xs font-bold">
-                {currentPage} / {totalPages}
-              </div>
               <button 
                 disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="px-3 py-1 text-xs font-bold uppercase tracking-wider border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="p-2 border border-black/10 rounded-lg disabled:opacity-30 hover:bg-white transition-all"
               >
-                Next
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
