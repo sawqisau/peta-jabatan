@@ -24,13 +24,24 @@ const TicketingView: React.FC<TicketingViewProps> = ({ proposals, onUpdate, user
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProposals = filteredProposals.slice(startIndex, startIndex + itemsPerPage);
 
-  const handleStatusUpdate = async (id: number, type: string, newStatus: string) => {
-    await fetch(`/api/${type}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    onUpdate();
+  const handleStatusUpdate = async (id: number, sourceTable: string, newStatus: string) => {
+    try {
+      const response = await fetch('/api/update-proposal-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, sourceTable, status: newStatus }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update status');
+      }
+      
+      onUpdate();
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("Gagal memperbarui status. Silakan coba lagi.");
+    }
   };
 
   return (
